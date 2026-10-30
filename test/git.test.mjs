@@ -35,7 +35,19 @@ before(() => {
   commit(shop, "c.txt", "Something on main");
   git(shop, "checkout", "-q", "5-old-work");
   git(shop, "merge", "-q", "--no-ff", "--no-edit", "main");
+  // Onto main: a direct commit, a version bump, and two merges -- one of a
+  // branch with no ticket, one of a ticket's branch.
+  git(shop, "checkout", "-q", "main");
+  commit(shop, "d.txt", "Fix the footer link");
+  commit(shop, "VERSION", "Shop 1.2.0");
+  git(shop, "checkout", "-q", "-b", "tidy-readme");
+  commit(shop, "e.txt", "Tidy");
+  git(shop, "checkout", "-q", "main");
+  git(shop, "merge", "-q", "--no-ff", "-m", "Merge pull request #7 from someone/tidy-readme", "-m", "Tidy the README", "tidy-readme");
+  git(shop, "merge", "-q", "--no-ff", "-m", "Merge pull request #8 from someone/12-checkout-button", "-m", "Add the checkout button", "12-checkout-button");
+  // ...and the ticket's branch carries on past its first merge.
   git(shop, "checkout", "-q", "12-checkout-button");
+  commit(shop, "f.txt", "Disable the button while paying");
 });
 after(() => rmSync(root, { recursive: true, force: true }));
 
@@ -52,6 +64,14 @@ test("counts your commits on a ticket branch, but not master merged into an idle
   assert.equal(repo.branchAuthor, null);
   assert.ok(repo.ticketCommits["#12"]?.length);
   assert.equal(repo.ticketCommits["#5"], undefined);
+});
+
+test("work on main with no ticket: direct commits and unnumbered merges, not bumps or a ticket's merge", async () => {
+  const repo = await scanRepo({ name: "shop", path: join(root, "shop") }, ME);
+  const titles = repo.untracked.map((w) => `${w.title}${w.ref ? ` ${w.ref}` : ""}`);
+  assert.ok(titles.includes("Fix the footer link"));
+  assert.ok(titles.includes("Tidy the README !7"));
+  assert.ok(!titles.some((t) => /1\.2\.0|checkout button/.test(t)));
 });
 
 test("branch names", () => {

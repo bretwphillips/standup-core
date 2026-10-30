@@ -120,7 +120,10 @@ export async function syncGitLab({ repos, host, dataDir, quick = false, full: wa
     : Promise.resolve(null);
   // Your open tickets, started or not, so the standup can plan past what you've begun.
   const assignedCall = quick ? Promise.resolve(null) : pages("issues?scope=assigned_to_me&state=opened");
-  const [newEvents, newMrs, reviewing, assignedIssues] = await Promise.all([eventsCall, mrsCall, reviewsCall, assignedCall]);
+  // Your open merge requests, whole: reviewers are added without always touching
+  // a merge request's updated time, so "changed since" can miss them.
+  const openCall = quick ? Promise.resolve(null) : pages("merge_requests?scope=created_by_me&state=opened");
+  const [newEvents, newMrs, reviewing, assignedIssues, openMrs] = await Promise.all([eventsCall, mrsCall, reviewsCall, assignedCall, openCall]);
   // Without events GitLab didn't answer; leave everything as it was, so the next
   // sync still asks from the last good one.
   if (!newEvents) return null;
@@ -152,8 +155,10 @@ export async function syncGitLab({ repos, host, dataDir, quick = false, full: wa
     cache.mrs[m.id] = {
       id: m.id, iid: m.iid, project_id: m.project_id, source_branch: m.source_branch, references: { full: m.references?.full },
       state: m.state, draft: m.draft, title: m.title, updated_at: m.updated_at, merged_at: m.merged_at, closed_at: m.closed_at,
+      reviewers: (m.reviewers ?? []).map((r) => r.username),
     };
   }
+  for (const m of openMrs ?? []) if (cache.mrs[m.id]) cache.mrs[m.id].reviewers = (m.reviewers ?? []).map((r) => r.username);
   for (const [id, m] of Object.entries(cache.mrs)) if (secondsOf(m.updated_at) < now - MR_DAYS * DAY) delete cache.mrs[id];
 
   // Review requests: someone else's, open, not yet approved by you.
@@ -365,6 +370,8 @@ function toActivity({ cache, folderOf, folders, host, tickets, assignedKeys, me,
       const repo = folderOf((mr.references?.full ?? "").split("!")[0]);
       return ticket && repo
         ? { repo, ticket: `#${ticket}`, number: mr.iid, state: STATE(mr), title: mr.title ?? "",
+            // who's asked to review it, you aside
+            reviewers: (mr.reviewers ?? []).filter((r) => r !== me),
             doneAt: STATE(mr) === "merged" || STATE(mr) === "closed"
               ? Date.parse(mr.merged_at ?? mr.closed_at ?? mr.updated_at ?? "") / 1000 || null
               : null }

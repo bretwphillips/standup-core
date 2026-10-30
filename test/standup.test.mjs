@@ -95,6 +95,27 @@ test("a ticket landed weeks ago drops away once its MR is merged", () => {
   assert.ok(!repos[0].threads.some((t) => t.ticket === "#5"));
 });
 
+test("work on main with no ticket is Yesterday, and doesn't wake an old ticket", () => {
+  const scanned = repo({ branch: "main", isDefault: true, ticket: null, recentCommits: [{ at: yesterday, subject: "Fix the footer link" }],
+    untracked: [{ at: yesterday, title: "Fix the footer link" }, { at: lastMonth, title: "Something long ago" }] });
+  const text = standup(assemble([scanned], {}, { now, written: { shop: [{ ticket: "#5", title: "Old work" }] } }), {}, {}, now).text;
+  assert.match(text.split("*Today:*")[0], /Fix the footer link/);
+  assert.doesNotMatch(text, /Old work|Something long ago/);
+});
+
+test("a repo that merged pull requests is reported by them, not its commits", () => {
+  const scanned = repo({ branch: "main", isDefault: true, ticket: null,
+    untracked: [{ at: yesterday, title: "Squish fades in" }, { at: yesterday, title: "Squish fades out" }] });
+  const text = draft([scanned], { mrs: [{ repo: "shop", ticket: "#30", number: 33, state: "merged", title: "Ground stop", doneAt: yesterday }] });
+  assert.match(text, /Ground stop https:\/\/git\.example\.com\/team\/shop\/-\/merge_requests\/33/);
+  assert.doesNotMatch(text, /Squish/);
+});
+
+test("needs review names who it's waiting on", () => {
+  const text = draft([repo()], { mrs: [{ repo: "shop", ticket: "#12", number: 41, state: "rfr", reviewers: ["ana.lima", "sam"] }] });
+  assert.match(text.split("*Needs review:*")[1], /merge_requests\/41 \(ana, sam\)/);
+});
+
 test("written threads win over derived ones and keep their goal", () => {
   const repos = assemble(
     [repo({ ticketCommits: { "#12": [yesterday] }, activeTickets: [{ ticket: "#12", branch: "12-checkout-button", at: yesterday }] })],

@@ -102,7 +102,9 @@ export async function syncGitHub({ repos: list, dataDir, quick = false, full: wa
   cache.eventsAt = now;
 
   // ---- your pull requests and the ones waiting on your review: one query.
-  const PR = "number title state isDraft headRefName url updatedAt repository { nameWithOwner }";
+  const PR = `number title state isDraft headRefName url updatedAt repository { nameWithOwner }
+    reviewRequests(first: 10) { nodes { requestedReviewer { ... on User { login } } } }
+    latestReviews(first: 10) { nodes { author { login } } }`;
   const since = new Date((last ? last - 3600 : now - PR_DAYS * DAY) * 1000).toISOString().slice(0, 10);
   const found = await graphql(`query {
     ${quick ? "" : `mine: search(type: ISSUE, first: 100, query: "is:pr author:${me} updated:>=${since}") { nodes { ... on PullRequest { ${PR} } } }
@@ -119,6 +121,9 @@ export async function syncGitHub({ repos: list, dataDir, quick = false, full: wa
     cache.prs[`${slug}!${pr.number}`] = {
       slug, number: pr.number, title: pr.title, state: pr.state, draft: pr.isDraft, branch: pr.headRefName, url: pr.url,
       updatedAt: secondsOf(pr.updatedAt),
+      // Asked to review, and those who have: GitHub drops a request once it's answered.
+      reviewers: [...new Set([...(pr.reviewRequests?.nodes ?? []).map((r) => r.requestedReviewer?.login),
+        ...(pr.latestReviews?.nodes ?? []).map((r) => r.author?.login)])].filter((login) => login && login !== me),
     };
   }
   for (const [key, pr] of Object.entries(cache.prs)) if (pr.state !== "OPEN" && pr.updatedAt < now - PR_DAYS * DAY) delete cache.prs[key];
@@ -317,7 +322,8 @@ function toActivity({ cache, repos, assignedKeys, now }) {
       const ticket = /^(\d+)-/.exec(pr.branch ?? "")?.[1];
       // a finished PR's last update is when it merged or closed, near enough
       const doneAt = pr.state === "MERGED" || pr.state === "CLOSED" ? pr.updatedAt ?? null : null;
-      return ticket ? { repo: repos.get(pr.slug), ticket: `#${ticket}`, number: pr.number, state: STATE(pr), title: pr.title ?? "", doneAt } : null;
+      return ticket ? { repo: repos.get(pr.slug), ticket: `#${ticket}`, number: pr.number, state: STATE(pr), title: pr.title ?? "", doneAt,
+        reviewers: pr.reviewers ?? [] } : null;
     }).filter(Boolean),
     issues,
     // An open parent's open sub-issues, in its order: the standup's next work

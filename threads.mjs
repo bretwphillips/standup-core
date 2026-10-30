@@ -41,7 +41,7 @@ export function assemble(scanned, activity = {}, { written = {}, standup = "host
     const withSynced = (ticket, recorded = []) => {
       const mine = synced.filter((m) => m.ticket === ticket);
       if (!mine.length) return recorded;
-      const fresh = mine.map((m) => ({ number: m.number, state: m.state, seenAt: syncedOn, doneAt: m.doneAt ?? null }));
+      const fresh = mine.map((m) => ({ number: m.number, state: m.state, seenAt: syncedOn, doneAt: m.doneAt ?? null, reviewers: m.reviewers ?? [] }));
       return [...recorded.filter((r) => !mine.some((m) => m.number === r.number)), ...fresh];
     };
     const issueOf = (ticket) => (activity.issues ?? []).find((i) => i.repo === name && i.ticket === ticket);
