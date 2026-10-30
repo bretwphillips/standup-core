@@ -1,0 +1,17 @@
+{
+  "name": "standup-core",
+  "version": "0.1.0",
+  "description": "Drafts a morning standup from your git repos and their GitLab or GitHub activity.",
+  "type": "module",
+  "exports": {
+    ".": "./index.mjs"
+  },
+  "files": ["*.mjs", "LICENSE", "README.md"],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "license": "MIT"
+}

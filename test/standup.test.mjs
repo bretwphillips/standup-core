@@ -1,0 +1,106 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { assemble } from "../threads.mjs";
+import { standup } from "../standup.mjs";
+
+// Thursday morning; yesterday is Wednesday.
+const now = new Date(2030, 4, 9, 9, 0);
+const yesterday = new Date(2030, 4, 8, 14, 0).getTime() / 1000;
+const lastMonth = new Date(2030, 3, 2, 14, 0).getTime() / 1000;
+
+const repo = (over = {}) => ({
+  name: "shop",
+  branch: "12-checkout-button",
+  isDefault: false,
+  web: "https://git.example.com/team/shop",
+  host: "git.example.com",
+  branchAuthor: null,
+  recentCommits: [],
+  ticketCommits: {},
+  ticketBranches: {},
+  activeTickets: [],
+  committedAt: yesterday,
+  days: 0,
+  ticket: "#12",
+  branchTitle: "Checkout button",
+  ...over,
+});
+
+const issue = (ticket, over = {}) => ({
+  repo: "shop", ticket, title: `Ticket ${ticket}`, state: "opened", weight: 1, assigned: true, updatedAt: yesterday,
+  epic: { ref: "&3", title: "Checkout", url: "https://git.example.com/groups/team/-/epics/3", open: true }, blockedBy: [],
+  ...over,
+});
+
+const draft = (scanned, activity, opts = {}) => standup(assemble(scanned, activity, { now }), {}, activity, now, opts).text;
+
+test("a ticket branch with yesterday's commits is Yesterday and Today, titled from the ticket", () => {
+  const text = draft(
+    [repo({ ticketCommits: { "#12": [yesterday] }, ticketBranches: { "#12": "12-checkout-button" },
+      activeTickets: [{ ticket: "#12", branch: "12-checkout-button", title: "Checkout button", at: yesterday }] })],
+    { issues: [issue("#12", { title: "Add the checkout button" })] },
+  );
+  const [before, after] = text.split("*Today:*");
+  assert.match(before, /Add the checkout button/);
+  assert.match(after, /Add the checkout button/);
+  assert.match(text, /_Checkout https:\/\/git\.example\.com\/groups\/team\/-\/epics\/3_/);
+});
+
+test("a closed ticket is worked on, not planned", () => {
+  const text = draft(
+    [repo({ branch: "main", isDefault: true, ticket: null, ticketCommits: { "#7": [yesterday] }, ticketBranches: { "#7": "7-receipts" } })],
+    { issues: [issue("#7", { title: "Email receipts", state: "closed" })] },
+  );
+  const [before, after] = text.split("*Today:*");
+  assert.match(before, /Email receipts/);
+  assert.doesNotMatch(after, /Email receipts/);
+});
+
+test("Today fills to the weight limit, carried-over work first", () => {
+  const text = draft(
+    [repo({ ticketCommits: { "#12": [yesterday] }, ticketBranches: { "#12": "12-checkout-button" } })],
+    { issues: [issue("#12", { weight: 3 }), issue("#20", { weight: 3 }), issue("#21", { weight: 2 })] },
+    { weightLimit: 5 },
+  );
+  const after = text.split("*Today:*")[1].split("*Blockers")[0];
+  assert.match(after, /Ticket #12/);
+  // #20 doesn't fit after #12; the smaller #21 still does.
+  assert.doesNotMatch(after, /Ticket #20/);
+  assert.match(after, /Ticket #21/);
+});
+
+test("repos on another host are left out", () => {
+  const work = repo({ ticketCommits: { "#12": [yesterday] }, ticketBranches: { "#12": "12-checkout-button" } });
+  const side = repo({ name: "garden", web: "https://github.com/someone/garden", host: "github.com",
+    ticketCommits: { "#4": [yesterday] }, ticketBranches: { "#4": "4-seed-list" }, branch: "4-seed-list", ticket: "#4" });
+  const third = repo({ name: "api", web: "https://git.example.com/team/api" });
+  const repos = assemble([work, side, third], {}, { now });
+  assert.equal(repos.find((r) => r.name === "garden").inStandup, false);
+  assert.equal(repos.find((r) => r.name === "shop").inStandup, true);
+  assert.doesNotMatch(standup(repos, {}, {}, now).text, /Seed list/);
+});
+
+test("someone else's branch isn't yours to report", () => {
+  const repos = assemble([repo({ branchAuthor: "A. Colleague" })], {}, { now });
+  assert.equal(repos[0].inStandup, false);
+});
+
+test("a ticket landed weeks ago drops away once its MR is merged", () => {
+  const repos = assemble(
+    [repo({ branch: "main", isDefault: true, ticket: null,
+      activeTickets: [{ ticket: "#5", branch: "5-old-work", title: "Old work", at: lastMonth }] })],
+    { mrs: [{ repo: "shop", ticket: "#5", number: 9, state: "merged", doneAt: lastMonth }] },
+    { now },
+  );
+  assert.ok(!repos[0].threads.some((t) => t.ticket === "#5"));
+});
+
+test("written threads win over derived ones and keep their goal", () => {
+  const repos = assemble(
+    [repo({ ticketCommits: { "#12": [yesterday] }, activeTickets: [{ ticket: "#12", branch: "12-checkout-button", at: yesterday }] })],
+    { issues: [issue("#12")] },
+    { now, written: { shop: [{ ticket: "#12", goal: "Ship the checkout button behind a flag" }] } },
+  );
+  assert.equal(repos[0].threads.length, 1);
+  assert.match(standup(repos, {}, {}, now).text, /Ship the checkout button behind a flag/);
+});
