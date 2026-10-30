@@ -87,6 +87,10 @@ Each host reports `"ok"`, `"failed"`, `"missing"` (its tool isn't installed) or
   ones finished in the window are Yesterday.
 - `now`: the moment to draft for.
 
+`toHTML(text)` turns the draft into HTML for the clipboard's rich half: Slack
+takes that flavour of a paste, so links arrive as clickable `!41` and `#44`
+rather than full addresses, and bullets as a real list.
+
 The lower-level pieces (`scanRepo`, `assemble`, `standup`, `syncGitLab`,
 `syncGitHub`, `readActivity`) are exported for callers that already have some of
 the data.

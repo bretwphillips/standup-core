@@ -13,8 +13,9 @@ import { assemble, groupOf } from "./threads.mjs";
 import { standup, since } from "./standup.mjs";
 import { syncGitLab } from "./gitlab.mjs";
 import { syncGitHub } from "./github.mjs";
+import { toHTML } from "./format.mjs";
 
-export { findRepos, scanRepo, assemble, groupOf, standup, since, syncGitLab, syncGitHub };
+export { findRepos, scanRepo, assemble, groupOf, standup, since, syncGitLab, syncGitHub, toHTML };
 
 const readJson = (path, fallback) => {
   try {
