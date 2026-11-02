@@ -125,3 +125,35 @@ test("written threads win over derived ones and keep their goal", () => {
   assert.equal(repos[0].threads.length, 1);
   assert.match(standup(repos, {}, {}, now).text, /Ship the checkout button behind a flag/);
 });
+
+test("on a Monday, Yesterday is Friday and the weekend, not this morning", () => {
+  const monday = new Date(2030, 4, 13, 10, 0);
+  const friday = new Date(2030, 4, 10, 15, 0).getTime() / 1000;
+  const sunday = new Date(2030, 4, 12, 15, 0).getTime() / 1000;
+  const thisMorning = new Date(2030, 4, 13, 9, 0).getTime() / 1000;
+  const scanned = [
+    repo({ branch: "12-checkout-button", committedAt: thisMorning,
+      ticketCommits: { "#12": [friday], "#14": [sunday], "#15": [thisMorning] },
+      ticketBranches: { "#12": "12-checkout-button", "#14": "14-receipts", "#15": "15-refunds" },
+      activeTickets: [12, 14, 15].map((n) => ({ ticket: `#${n}`, branch: `${n}-x`, title: null, at: thisMorning })) }),
+  ];
+  const activity = { issues: [issue("#12"), issue("#14"), issue("#15")] };
+  const text = standup(assemble(scanned, activity, { now: monday }), {}, activity, monday).text;
+  const yesterday = text.split("*Today:*")[0];
+  assert.match(yesterday, /Ticket #12/);
+  assert.match(yesterday, /Ticket #14/);
+  assert.doesNotMatch(yesterday, /Ticket #15/);
+  assert.match(text.split("*Today:*")[1], /Ticket #15/);
+});
+
+test("a merged request of a ticket's is said as the ticket, under its epic", () => {
+  const merged = new Date(2030, 4, 8, 13, 0).getTime() / 1000;
+  const activity = {
+    issues: [issue("#54", { title: "Home page view", state: "closed" })],
+    mrs: [{ repo: "shop", ticket: "#54", number: 83, state: "merged", title: 'Resolve "Home page view"', doneAt: merged }],
+  };
+  const text = draft([repo({ branch: "main", isDefault: true, ticket: null })], activity);
+  const yesterday = text.split("*Today:*")[0];
+  assert.match(yesterday, /_Checkout https:\/\/git\.example\.com\/groups\/team\/-\/epics\/3_\n• Home page view https:\/\/git\.example\.com\/team\/shop\/-\/merge_requests\/83/);
+  assert.doesNotMatch(text, /Resolve "|_Other_/);
+});
