@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toHTML } from "../format.mjs";
+import { toHTML, toText } from "../format.mjs";
 
 test("links shorten to their tokens, bullets become a list", () => {
   const html = toHTML([
@@ -19,4 +19,16 @@ test("links shorten to their tokens, bullets become a list", () => {
 
 test("text is escaped", () => {
   assert.equal(toHTML("• a <b> & c"), "<ul><li>a &lt;b&gt; &amp; c</li></ul>");
+});
+
+test("the plain text reads as the HTML does: tokens, not addresses", () => {
+  const text = toText([
+    "*Today:*",
+    "_Checkout https://git.example.com/groups/team/-/epics/3_",
+    "• Add the button https://git.example.com/team/shop/-/merge_requests/41",
+    "• a <b> & c",
+    "",
+    "*Blockers:* none",
+  ].join("\n"));
+  assert.equal(text, "Today:\nCheckout &3\n• Add the button !41\n• a <b> & c\n\nBlockers: none");
 });

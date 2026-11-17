@@ -46,3 +46,15 @@ export function toHTML(plain) {
   closeList();
   return out.join("");
 }
+
+// The standup's words as the HTML shows them, for the clipboard's plain half:
+// Slack now pastes plain text that looks like markup instead of the HTML, so
+// the text has to read like the preview -- !41 and #44, not their addresses.
+export function toText(plain) {
+  return toHTML(plain)
+    .replace(/<li>/g, "• ")
+    .replace(/<\/(p|li)>/g, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&")
+    .trim();
+}
