@@ -157,3 +157,15 @@ test("a merged request of a ticket's is said as the ticket, under its epic", () 
   assert.match(yesterday, /_Checkout https:\/\/git\.example\.com\/groups\/team\/-\/epics\/3_\n• Home page view https:\/\/git\.example\.com\/team\/shop\/-\/merge_requests\/83/);
   assert.doesNotMatch(text, /Resolve "|_Other_/);
 });
+
+test("the next tickets in an epic go lowest number first, whatever the epic's order", () => {
+  const free = (ticket, order) => issue(ticket, { assigned: false, order });
+  const text = draft(
+    [repo({ ticketCommits: { "#12": [yesterday] }, ticketBranches: { "#12": "12-checkout-button" },
+      activeTickets: [{ ticket: "#12", branch: "12-checkout-button", title: "Checkout button", at: yesterday }] })],
+    { issues: [issue("#12")], epicIssues: [free("#30", 0), free("#20", 1)] },
+    { weightLimit: 10 },
+  );
+  const today = text.split("*Today:*")[1];
+  assert.ok(today.indexOf("/work_items/20") > 0 && today.indexOf("/work_items/20") < today.indexOf("/work_items/30"), today);
+});
