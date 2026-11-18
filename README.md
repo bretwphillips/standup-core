@@ -26,7 +26,8 @@ _Checkout https://git.example.com/groups/team/-/epics/3_
 - **Yesterday** is what the last working day produced: your commits on each
   ticket branch, tickets and merge requests you commented on, merge requests
   you approved. Monday looks back to Friday.
-- **Today** is the tickets in play, then your open tickets and the next ones
+- **Today** is the tickets in play (yesterday's first, then ones waiting on a
+  review), then your open tickets and the next ones
   nobody has taken in the epics you're working in, filled up to a weight limit
   (GitLab weight; a ticket with none counts as 1). A ticket closed or landed
   stays off it, and one blocked by an open ticket waits for its blocker.

@@ -69,6 +69,20 @@ test("Today fills to the weight limit, carried-over work first", () => {
   assert.match(after, /Ticket #21/);
 });
 
+test("Today takes work waiting on a review before tickets untouched since", () => {
+  const threeDaysAgo = new Date(2030, 4, 6, 14, 0).getTime() / 1000;
+  const text = draft(
+    [repo(), repo({ name: "api", web: "https://git.example.com/team/api", branch: "30-cache-prices", ticket: "#30",
+      branchTitle: "Cache prices", committedAt: threeDaysAgo, days: 3 })],
+    { issues: [issue("#12"), issue("#30", { repo: "api" })],
+      mrs: [{ repo: "api", ticket: "#30", number: 17, state: "rfr", reviewers: ["ana"] }] },
+    { weightLimit: 1 },
+  );
+  const after = text.split("*Today:*")[1].split("*Blockers")[0];
+  assert.match(after, /Ticket #30/);
+  assert.doesNotMatch(after, /Ticket #12/);
+});
+
 test("repos on another host are left out", () => {
   const work = repo({ ticketCommits: { "#12": [yesterday] }, ticketBranches: { "#12": "12-checkout-button" } });
   const side = repo({ name: "garden", web: "https://github.com/someone/garden", host: "github.com",
